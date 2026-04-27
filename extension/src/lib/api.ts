@@ -19,6 +19,26 @@ export class NotArticleError extends Error {
   }
 }
 
+function friendlyError(e: unknown): string {
+  if (e instanceof DOMException && e.name === "AbortError")
+    return "Serwer nie odpowiada — spróbuj ponownie.";
+  if (e instanceof TypeError && e.message.includes("fetch"))
+    return "Brak połączenia z serwerem analizy. Spróbuj ponownie później.";
+  if (e instanceof BackendError) {
+    if (e.status >= 500) return "Serwer analizy chwilowo niedostępny.";
+    if (e.status === 429) return "Zbyt wiele zapytań — poczekaj chwilę.";
+    if (e.status === 422) return "Nie udało się przetworzyć treści strony.";
+    return `Błąd serwera (${e.status}).`;
+  }
+  return "Nieznany błąd — spróbuj ponownie.";
+}
+
+class BackendError extends Error {
+  constructor(public status: number) {
+    super(`backend ${status}`);
+  }
+}
+
 export async function analyzeCurrentTab(): Promise<AnalyzeResponse> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) throw new Error("No active tab");
@@ -56,15 +76,23 @@ export async function analyzeCurrentTab(): Promise<AnalyzeResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
 
-  const res = await fetch(`${BACKEND_URL}/analyze`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ url: tab.url, title, text }),
-    signal: controller.signal,
-  }).finally(() => clearTimeout(timeout));
+  let res: Response;
+  try {
+    res = await fetch(`${BACKEND_URL}/analyze`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: tab.url, title, text }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    throw new Error(friendlyError(e));
+  } finally {
+    clearTimeout(timeout);
+  }
 
-  if (!res.ok) throw new Error(`backend ${res.status}`);
+  if (!res.ok) throw new BackendError(res.status);
   const data = (await res.json()) as AnalyzeResponse;
+
   await chrome.storage.session.set({ [cacheKey]: data });
   return data;
 }
