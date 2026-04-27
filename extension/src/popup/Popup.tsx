@@ -12,7 +12,9 @@ import {
   AlertCircle,
   AlertTriangle,
   CircleCheckBig,
+  Moon,
   RotateCcw,
+  Sun,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
@@ -40,22 +42,39 @@ export function Popup() {
   const [tooltip, setTooltip] = useState<"up" | "down" | null>(null);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout>>();
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [dark, setDark] = useState(
+    () => localStorage.getItem("fs-theme") === "dark",
+  );
 
-  function runAnalysis() {
-    analyzeCurrentTab()
-      .then((data) => {
-        setResult(data);
-        fetchCommunity(data.url)
-          .then(({ up, down }) =>
-            setResult((prev) => updateCommunity(prev, up, down)),
-          )
-          .catch(() => {});
-      })
-      .catch((e) => {
-        if (e instanceof NotArticleError) setNotArticle(true);
-        else setError((e as Error).message);
-      })
-      .finally(() => setLoading(false));
+  function toggleDark() {
+    setDark((d) => {
+      const next = !d;
+      localStorage.setItem("fs-theme", next ? "dark" : "light");
+      return next;
+    });
+  }
+
+  async function runAnalysis(force = false) {
+    setLoading(true);
+    try {
+      const data = await analyzeCurrentTab(force);
+      setResult(data);
+
+      try {
+        const { up, down } = await fetchCommunity(data.url);
+        setResult((prev) => updateCommunity(prev, up, down));
+      } catch {
+        // Ignoruj błędy dot. samej społeczności
+      }
+    } catch (e) {
+      if (e instanceof NotArticleError) {
+        setNotArticle(true);
+      } else {
+        setError((e as Error).message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -68,15 +87,24 @@ export function Popup() {
 
   async function handleReanalyze() {
     if (!result) return;
-    const url = result.url;
+
     setReanalyzing(true);
     setResult(null);
     setError(null);
     setNotArticle(false);
     setVoted(null);
-    setLoading(true);
-    await clearCache(url);
-    runAnalysis();
+
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tab?.url) await clearCache(tab.url);
+    } catch {
+      // ignoruj błąd czyszczenia cache
+    }
+
+    await runAnalysis(true);
     setReanalyzing(false);
   }
 
@@ -98,213 +126,225 @@ export function Popup() {
   }
 
   return (
-    <div
-      className="p-1.5 overflow-hidden"
-      style={{
-        background:
-          "linear-gradient(326deg, rgba(14, 124, 134, 1) 0%, rgba(164, 218, 222, 1) 100%)",
-      }}
-    >
-      <div className="flex flex-col text-sm text-gray-900 bg-white max-h-[560px]">
-        {/* Header */}
-        <div className="flex items-center gap-2 p-5 pb-4 shrink-0 select-none">
-          <img
-            src="/icons/fakescope-icon.svg"
-            alt="FakeScope logo"
-            className="aspect-square h-10"
-          />
-          <h1
-            className="text-xl font-bold"
-            style={{ fontFamily: "'Stack Sans Headline', sans-serif" }}
-          >
-            <span className="text-[#0E7C86]">Fake</span>Scope
-          </h1>
-          <div className="flex flex-col items-center ml-auto">
-            <span className="tracking-tight text-gray-400 ml-auto text-xs">
-              v1.0.0
-            </span>
-            <span className="tracking-tight text-gray-400 ml-auto text-xs">
-              &copy; 2026 3.5IQ
-            </span>
-          </div>
-        </div>
-        <hr />
-
-        {loading && (
-          <div className="space-y-3 animate-pulse p-5">
-            <div className="flex items-center gap-4 p-3 rounded-lg border border-gray-200">
-              <div className="w-[100px] h-[100px] rounded-full bg-gray-200" />
-              <div className="flex-1 space-y-2">
-                <div className="h-8 w-16 bg-gray-200 rounded" />
-                <div className="h-3 w-24 bg-gray-200 rounded" />
-              </div>
-            </div>
-            <div className="h-3 bg-gray-200 rounded w-full" />
-            <div className="h-3 bg-gray-200 rounded w-4/5" />
-            <div className="h-3 bg-gray-200 rounded w-3/5" />
-          </div>
-        )}
-
-        {notArticle && (
-          <div className="p-5 text-xs text-gray-500 flex gap-2 items-start animate-[fadeSlideIn_0.3s_ease_forwards]">
-            <AlertCircle size={16} className="shrink-0" />
-            <div className="flex flex-col gap-1">
-              <span className="font-semibold">Brak artykułu na stronie</span>
-              Przejdź na stronę jakiegoś artykułu i naciśnij na FakeScope
-              ponownie.
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="m-5 p-4 rounded-2xl bg-red-700 text-xs text-red-300 animate-[fadeSlideIn_0.3s_ease_forwards]">
-            <div className="font-semibold mb-1 text-base text-white flex gap-1.5 items-center">
-              <AlertTriangle size={20} strokeWidth={2.5} />
-              Wystąpił błąd
-            </div>
-            <div>{error}</div>
-          </div>
-        )}
-
-        {result && (
-          <div className="flex flex-col gap-4 p-5 pt-4 overflow-y-auto overflow-x-hidden mr-1 my-1 mb-3 animate-[fadeSlideIn_0.35s_ease_forwards]">
-            <ScoreCard
-              score={result.final_score}
-              verdict={result.llm.verdict}
+    <div className={dark ? "dark" : ""}>
+      <div
+        className="p-1.5 overflow-hidden"
+        style={{
+          background:
+            "linear-gradient(326deg, rgba(14, 124, 134, 1) 0%, rgba(164, 218, 222, 1) 100%)",
+        }}
+      >
+        <div className="flex flex-col text-sm text-gray-900 bg-white dark:bg-gray-900 dark:text-gray-100 max-h-[560px]">
+          {/* Header */}
+          <div className="flex items-center gap-2 p-5 pb-4 shrink-0 select-none">
+            <img
+              src="/icons/fakescope-icon.svg"
+              alt="FakeScope logo"
+              className="aspect-square h-10"
             />
-
-            <div>
-              <h2 className="font-semibold text-xs uppercase text-gray-500 mb-1">
-                Podsumowanie
-              </h2>
-              <p className="text-sm">{result.llm.summary}</p>
+            <h1
+              className="text-xl font-bold"
+              style={{ fontFamily: "'Stack Sans Headline', sans-serif" }}
+            >
+              <span className="text-[#0E7C86]">Fake</span>Scope
+            </h1>
+            <div className="flex flex-col items-center ml-auto gap-1">
+              <button
+                onClick={toggleDark}
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                aria-label={dark ? "Włącz tryb jasny" : "Włącz tryb ciemny"}
+              >
+                {dark ? <Sun size={15} /> : <Moon size={15} />}
+              </button>
+              <span className="tracking-tight text-gray-400 dark:text-gray-500 text-xs">
+                v1.0.0
+              </span>
+              <span className="tracking-tight text-gray-400 dark:text-gray-500 text-xs">
+                &copy; 2026 3.5IQ
+              </span>
             </div>
-            <hr />
+          </div>
+          <hr className="dark:border-gray-700" />
 
-            <div className="py-2 flex flex-col gap-4">
-              {result.llm.red_flags.length === 0 &&
-                result.llm.positive_signals.length === 0 && (
-                  <div className="text-gray-500">
-                    Brak wyróżnionych sygnałów.
+          {loading && (
+            <div className="space-y-3 animate-pulse p-5">
+              <div className="flex items-center gap-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="w-[100px] h-[100px] rounded-full bg-gray-200 dark:bg-gray-700" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+                </div>
+              </div>
+              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" />
+              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/5" />
+              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/5" />
+            </div>
+          )}
+
+          {notArticle && (
+            <div className="p-5 text-xs text-gray-500 dark:text-gray-400 flex gap-2 items-start animate-[fadeSlideIn_0.3s_ease_forwards]">
+              <AlertCircle size={16} className="shrink-0" />
+              <div className="flex flex-col gap-1">
+                <span className="font-semibold">Brak artykułu na stronie</span>
+                Przejdź na stronę jakiegoś artykułu i naciśnij na FakeScope
+                ponownie.
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="m-5 p-4 rounded-2xl bg-red-700 dark:bg-red-900 text-xs text-red-300 animate-[fadeSlideIn_0.3s_ease_forwards]">
+              <div className="font-semibold mb-1 text-base text-white flex gap-1.5 items-center">
+                <AlertTriangle size={20} strokeWidth={2.5} />
+                Wystąpił błąd
+              </div>
+              <div>{error}</div>
+            </div>
+          )}
+
+          {result && (
+            <div className="flex flex-col gap-4 p-5 pt-4 overflow-y-auto overflow-x-hidden mr-1 my-1 mb-3 animate-[fadeSlideIn_0.35s_ease_forwards]">
+              <ScoreCard
+                score={result.final_score}
+                verdict={result.llm.verdict}
+              />
+
+              <div>
+                <h2 className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">
+                  Podsumowanie
+                </h2>
+                <p className="text-sm">{result.llm.summary}</p>
+              </div>
+              <hr className="dark:border-gray-700" />
+
+              <div className="py-2 flex flex-col gap-4">
+                {result.llm.red_flags.length === 0 &&
+                  result.llm.positive_signals.length === 0 && (
+                    <div className="text-gray-500 dark:text-gray-400">
+                      Brak wyróżnionych sygnałów.
+                    </div>
+                  )}
+
+                {result.llm.red_flags.length > 0 && (
+                  <div>
+                    <div className="font-semibold mb-1 text-xs text-red-600 dark:text-red-400 flex gap-1.5 items-center uppercase">
+                      <AlertCircle size={16} strokeWidth={2.5} />
+                      Sygnały ostrzegawcze
+                    </div>
+                    <ul className="list-disc pl-5 text-sm">
+                      {result.llm.red_flags.map((f, i) => (
+                        <li
+                          key={i}
+                          className="opacity-0 animate-[fadeSlideIn_0.3s_ease_forwards]"
+                          style={{ animationDelay: `${i * 60}ms` }}
+                        >
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 
-              {result.llm.red_flags.length > 0 && (
-                <div>
-                  <div className="font-semibold mb-1 text-xs text-red-600 flex gap-1.5 items-center uppercase">
-                    <AlertCircle size={16} strokeWidth={2.5} />
-                    Sygnały ostrzegawcze
-                  </div>
-                  <ul className="list-disc pl-5 text-sm">
-                    {result.llm.red_flags.map((f, i) => (
-                      <li
-                        key={i}
-                        className="opacity-0 animate-[fadeSlideIn_0.3s_ease_forwards]"
-                        style={{ animationDelay: `${i * 60}ms` }}
-                      >
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {result.llm.positive_signals.length > 0 && (
-                <div>
-                  <div className="font-semibold mb-1 text-xs text-green-600 flex gap-1.5 items-center uppercase">
-                    <CircleCheckBig size={16} strokeWidth={2.5} />
-                    Pozytywne sygnały
-                  </div>
-                  <ul className="list-disc pl-5 text-sm">
-                    {result.llm.positive_signals.map((f, i) => (
-                      <li
-                        key={i}
-                        className="opacity-0 animate-[fadeSlideIn_0.3s_ease_forwards]"
-                        style={{ animationDelay: `${i * 60}ms` }}
-                      >
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {/* Voting */}
-            <div className="flex flex-col items-center justify-center gap-2 pt-4 border-t">
-              <div className="flex items-center w-full gap-2">
-                {result.community !== null && (
-                  <>
-                    <span className="text-xs text-gray-500">Głosuj:</span>
-
-                    <div className="relative">
-                      <button
-                        disabled={voted !== null}
-                        className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
-                      ${
-                        voted === 1
-                          ? "bg-green-500 cursor-default text-white"
-                          : "bg-green-100 hover:bg-green-200 active:scale-95 cursor-pointer"
-                      }`}
-                        onClick={() => handleVote(1)}
-                      >
-                        <ThumbsUp
-                          size={16}
-                          className={`${voted !== 1 && "text-green-900"}`}
-                        />
-                        {result.community?.up ?? 0 + (voted === 1 ? 1 : 0)}
-                      </button>
-                      {tooltip === "up" && (
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
-                          Dziękujemy!
-                        </div>
-                      )}
+                {result.llm.positive_signals.length > 0 && (
+                  <div>
+                    <div className="font-semibold mb-1 text-xs text-green-600 dark:text-green-400 flex gap-1.5 items-center uppercase">
+                      <CircleCheckBig size={16} strokeWidth={2.5} />
+                      Pozytywne sygnały
                     </div>
-
-                    <div className="relative">
-                      <button
-                        disabled={voted !== null}
-                        className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
-                      ${
-                        voted === -1
-                          ? "bg-red-500 cursor-default text-white"
-                          : "bg-red-100 hover:bg-red-200 active:scale-95 disabled:cursor-not-allowed disabled:hover:bg-red-100"
-                      }`}
-                        onClick={() => handleVote(-1)}
-                      >
-                        <ThumbsDown
-                          size={16}
-                          className={`${voted !== -1 && "text-red-900"}`}
-                        />
-                        {result.community?.down ?? 0 + (voted === -1 ? 1 : 0)}
-                      </button>
-                      {tooltip === "down" && (
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
-                          Dziękujemy!
-                        </div>
-                      )}
-                    </div>
-                  </>
+                    <ul className="list-disc pl-5 text-sm">
+                      {result.llm.positive_signals.map((f, i) => (
+                        <li
+                          key={i}
+                          className="opacity-0 animate-[fadeSlideIn_0.3s_ease_forwards]"
+                          style={{ animationDelay: `${i * 60}ms` }}
+                        >
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
 
-              <button
-                onClick={handleReanalyze}
-                disabled={reanalyzing}
-                className="mt-5 flex items-center gap-1 text-xs text-white transition disabled:opacity-50 px-3 py-1.5 bg-[#0E7C86aa] hover:bg-[#0E7C86] rounded-xl"
-              >
-                <RotateCcw size={13} />
-                Analizuj ponownie
-              </button>
+              {/* Voting */}
+              <div className="flex flex-col items-center justify-center gap-2 pt-4 border-t dark:border-gray-700">
+                <div className="flex items-center w-full gap-2">
+                  {result.community != null && (
+                    <>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Głosuj:
+                      </span>
 
-              {result.cached && (
-                <span className="text-xs text-gray-400">
-                  Wczytano z pamięci podręcznej
-                </span>
-              )}
+                      <div className="relative">
+                        <button
+                          disabled={voted !== null}
+                          className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
+                        ${
+                          voted === 1
+                            ? "bg-green-500 cursor-default text-white"
+                            : "bg-green-100 hover:bg-green-200 dark:bg-green-900 dark:hover:bg-green-800 active:scale-95 cursor-pointer"
+                        }`}
+                          onClick={() => handleVote(1)}
+                        >
+                          <ThumbsUp
+                            size={16}
+                            className={`${voted !== 1 && "text-green-900 dark:text-green-100"}`}
+                          />
+                          {(result.community?.up ?? 0) + (voted === 1 ? 1 : 0)}
+                        </button>
+                        {tooltip === "up" && (
+                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
+                            Dziękujemy!
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <button
+                          disabled={voted !== null}
+                          className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
+                        ${
+                          voted === -1
+                            ? "bg-red-500 cursor-default text-white"
+                            : "bg-red-100 hover:bg-red-200 dark:bg-red-900 dark:hover:bg-red-800 active:scale-95 disabled:cursor-not-allowed disabled:hover:bg-red-100 dark:disabled:hover:bg-red-900"
+                        }`}
+                          onClick={() => handleVote(-1)}
+                        >
+                          <ThumbsDown
+                            size={16}
+                            className={`${voted !== -1 && "text-red-900 dark:text-red-100"}`}
+                          />
+                          {(result.community?.down ?? 0) +
+                            (voted === -1 ? 1 : 0)}
+                        </button>
+                        {tooltip === "down" && (
+                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
+                            Dziękujemy!
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleReanalyze}
+                  disabled={reanalyzing}
+                  className="mt-5 flex items-center gap-1 text-xs text-white transition disabled:opacity-50 px-3 py-1.5 bg-[#0E7C86aa] hover:bg-[#0E7C86] rounded-xl"
+                >
+                  <RotateCcw size={13} />
+                  Analizuj ponownie
+                </button>
+
+                {result.cached && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    Wczytano z pamięci podręcznej
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

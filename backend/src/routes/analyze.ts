@@ -13,11 +13,12 @@ const bodySchema = {
   required: ["url"],
   properties: {
     url: { type: "string", minLength: 1 },
+    force: { type: "boolean" },
   },
   additionalProperties: false,
 } as const;
 
-type Body = { url: string };
+type Body = { url: string; force?: boolean };
 
 function cacheKey(url: string): string {
   return `analyze:${createHash("sha256").update(url).digest("hex")}`;
@@ -50,16 +51,18 @@ export default async function analyzeRoute(app: FastifyInstance) {
       config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     },
     async (req) => {
-      const { url } = req.body;
+      const { url, force } = req.body;
       const key = cacheKey(url);
 
-      try {
-        const cached = await app.redis.get(key);
-        if (cached) {
-          return { ...(JSON.parse(cached) as AnalyzeResponse), cached: true };
+      if (!force) {
+        try {
+          const cached = await app.redis.get(key);
+          if (cached) {
+            return { ...(JSON.parse(cached) as AnalyzeResponse), cached: true };
+          }
+        } catch (err) {
+          app.log.warn({ err }, "redis read failed");
         }
-      } catch (err) {
-        app.log.warn({ err }, "redis read failed");
       }
 
       const { title, text } = await scrapePage(url);

@@ -29,7 +29,9 @@ function friendlyError(e: unknown): string {
   return "Nieznany błąd — spróbuj ponownie.";
 }
 
-export async function analyzeCurrentTab(): Promise<AnalyzeResponse> {
+export async function analyzeCurrentTab(
+  force = false,
+): Promise<AnalyzeResponse> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) throw new Error("No active tab");
 
@@ -41,17 +43,22 @@ export async function analyzeCurrentTab(): Promise<AnalyzeResponse> {
     throw new NotArticleError();
 
   const cacheKey = `analyze:${tab.url}`;
-  const cached = await chrome.storage.session.get([cacheKey]);
-  if (cached[cacheKey]) {
-    return { ...(cached[cacheKey] as AnalyzeResponse), cached: true };
+
+  if (!force) {
+    const cached = await chrome.storage.session.get([cacheKey]);
+    if (cached[cacheKey]) {
+      return { ...(cached[cacheKey] as AnalyzeResponse), cached: true };
+    }
   }
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/analyze`, {
+    const bust = Date.now();
+    res = await fetch(`${BACKEND_URL}/analyze?t=${bust}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ url: tab.url }),
+      body: JSON.stringify({ url: tab.url, force }),
+      cache: "no-store",
     });
   } catch (e) {
     throw new Error(friendlyError(e));
@@ -65,7 +72,13 @@ export async function analyzeCurrentTab(): Promise<AnalyzeResponse> {
 }
 
 export async function clearCache(url: string): Promise<void> {
-  await chrome.storage.session.remove([`analyze:${url}`]); // tablica!
+  const key = `analyze:${url}`;
+  await chrome.storage.session.remove(key);
+}
+
+// Globalne awaryjne czyszczenie
+export async function clearAllCache(): Promise<void> {
+  await chrome.storage.session.clear();
 }
 
 export async function voteOnUrl(url: string, vote: 1 | -1): Promise<void> {
@@ -74,6 +87,7 @@ export async function voteOnUrl(url: string, vote: 1 | -1): Promise<void> {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url, vote }),
+      cache: "no-store",
     });
   } catch {
     // głosowanie nie jest krytyczne
@@ -83,9 +97,15 @@ export async function voteOnUrl(url: string, vote: 1 | -1): Promise<void> {
 export async function fetchCommunity(
   url: string,
 ): Promise<{ up: number; down: number }> {
-  const res = await fetch(
-    `${BACKEND_URL}/votes?url=${encodeURIComponent(url)}`,
-  );
-  if (!res.ok) throw new Error("failed");
-  return res.json();
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/votes?url=${encodeURIComponent(url)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return { up: 0, down: 0 };
+    const data = await res.json();
+    return { up: data.up ?? 0, down: data.down ?? 0 };
+  } catch {
+    return { up: 0, down: 0 };
+  }
 }
