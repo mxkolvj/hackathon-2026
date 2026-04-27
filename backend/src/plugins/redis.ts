@@ -12,6 +12,8 @@ export default fp(async (app) => {
   const redis = new Redis(config.redisUrl, {
     lazyConnect: true,
     maxRetriesPerRequest: 2,
+    retryStrategy: () => null, // don't spam reconnects if Redis is down
+    enableOfflineQueue: false,
   });
   redis.on("error", (err) => app.log.warn({ err }, "redis error"));
   try {

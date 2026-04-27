@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { config } from "./config.js";
+import redisPlugin from "./plugins/redis.js";
 import supabasePlugin from "./plugins/supabase.js";
 import analyzeRoute from "./routes/analyze.js";
 import votesRoute from "./routes/votes.js";
@@ -20,10 +21,8 @@ await app.register(cors, {
   },
 });
 
+await app.register(redisPlugin);
 await app.register(supabasePlugin);
-
-console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
-console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY?.slice(0, 20));
 
 app.get("/health", async () => ({ ok: true }));
 
