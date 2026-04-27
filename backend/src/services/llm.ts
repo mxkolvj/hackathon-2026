@@ -1,41 +1,44 @@
 import { config } from "../config.js";
 import type { LlmResult } from "@fakescope/shared";
 
-const SYSTEM_PROMPT = `You are a professional fact-checking engine. Your sole job is to evaluate the credibility of a news article and return a structured JSON verdict.
+const LLM_TIMEOUT_MS = 120_000;
+const MAX_ARTICLE_CHARS = 4_000;
+const MIN_ARTICLE_CHARS = 100;
+
+const SYSTEM_PROMPT = `You are a professional fact-checking engine. Evaluate the credibility of a news article and return a structured JSON verdict.
 
 SCORING RUBRIC (0-100):
-- 85-100: Credible. Named sources, verifiable facts, neutral tone, no logical fallacies.
-- 60-84:  Mostly credible but has minor issues (anonymous sources, slight sensationalism).
-- 40-59:  Mixed. Significant unsourced claims, emotional language, or internal inconsistencies.
-- 20-39:  Low credibility. Multiple red flags: unnamed experts, misleading framing, unverifiable claims.
-- 0-19:   Fabricated or extreme propaganda. No sourcing, sensational headlines, conspiracy framing.
+- 85-100: Credible. Named sources, verifiable facts, neutral tone.
+- 60-84:  Mostly credible but minor issues (anonymous sources, slight sensationalism).
+- 40-59:  Mixed. Significant unsourced claims, emotional language, inconsistencies.
+- 20-39:  Low credibility. Multiple red flags, misleading framing.
+- 0-19:   Fabricated or extreme propaganda. No sourcing, conspiracy framing.
 
-RED FLAGS to look for:
-- Vague attribution ("sources say", "experts claim", "people are saying")
-- Emotionally loaded or sensational language designed to provoke outrage or fear
-- Logical fallacies (straw man, false dichotomy, appeal to authority without credentials)
-- Headlines that exaggerate or contradict the article body
-- Absence of dates, author names, or publication information
-- Claims that contradict well-established scientific or historical consensus
+RED FLAGS:
+- Vague attribution ("sources say", "experts claim")
+- Sensational/emotionally loaded language
+- Logical fallacies, headlines contradicting body
+- Missing dates, authors, or publication info
+- Claims contradicting scientific or historical consensus
 
-POSITIVE SIGNALS to look for:
-- Named, credentialed sources with verifiable affiliations
-- Links or references to primary sources (studies, official statements, court documents)
-- Author byline present and identifiable
-- Neutral, measured tone even on controversial topics
-- Acknowledgement of opposing viewpoints or uncertainty
-- Consistent facts between headline, lead, and body
+POSITIVE SIGNALS:
+- Named, credentialed sources
+- References to primary sources
+- Identifiable author byline
+- Neutral tone, acknowledgement of uncertainty
 
-OUTPUT FORMAT — respond with ONLY this JSON object, no prose, no markdown fences:
+Base your evaluation ONLY on the provided article text. Do not invent flags or signals not directly evidenced. If unsure, give fewer flags rather than guessing.
+
+OUTPUT — respond with ONLY this JSON object, no prose, no markdown, no extra fields:
 {
   "score": <integer 0-100>,
-  "verdict": "<one crisp sentence summarising the credibility judgement>",
-  "red_flags": ["<specific red flag found>", ...],
-  "positive_signals": ["<specific positive signal found>", ...],
-  "summary": "<2-3 sentences: what the article claims, what undermines or supports it, overall judgement>"
+  "verdict": "<one crisp sentence>",
+  "red_flags": ["<flag>", ...],
+  "positive_signals": ["<signal>", ...],
+  "summary": "<2-3 sentences>"
 }
 
-If the article text is missing or too short to evaluate, base the score on the URL domain and title alone and set score to 50 unless the title itself is clearly sensational. The output JSON must contain information in Polish language.`;
+If the article is missing or too short to evaluate, base score on URL and title alone, defaulting to 50 unless the title is clearly sensational.`;
 
 const FALLBACK: LlmResult = {
   score: 50,
@@ -45,27 +48,30 @@ const FALLBACK: LlmResult = {
   summary: "LLM analysis unavailable — defaulting to neutral score.",
 };
 
-// Takes beginning + end of long articles to preserve lead and conclusion.
+export interface LlmInput {
+  url: string;
+  title: string;
+  text: string;
+}
+
 function smartTruncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   const half = Math.floor(maxChars / 2);
   return `${text.slice(0, half)}\n\n[...]\n\n${text.slice(-half)}`;
 }
 
-function buildUserPrompt(input: {
-  url: string;
-  title: string;
-  text: string;
-}): string {
-  const { url, title, text } = input;
+function buildUserPrompt({ url, title, text }: LlmInput): string {
   const trimmed = text.trim();
+  const lines = [`URL: ${url}`];
+  if (title) lines.push(`Title: ${title}`);
 
-  if (!trimmed || trimmed.length < 100) {
-    return `URL: ${url}\nTitle: ${title}\n\nNote: No article body was provided. Evaluate based on the URL domain and title only.`;
+  if (trimmed.length < MIN_ARTICLE_CHARS) {
+    lines.push("", "Note: No article body available. Evaluate from URL and title only.");
+    return lines.join("\n");
   }
 
-  const article = smartTruncate(trimmed, 4000);
-  return `URL: ${url}\nTitle: ${title}\n\nArticle:\n${article}`;
+  lines.push("", "Article:", smartTruncate(trimmed, MAX_ARTICLE_CHARS));
+  return lines.join("\n");
 }
 
 function extractJson(raw: string): unknown {
@@ -82,9 +88,12 @@ function extractJson(raw: string): unknown {
 function coerce(parsed: unknown): LlmResult {
   if (!parsed || typeof parsed !== "object") return FALLBACK;
   const p = parsed as Record<string, unknown>;
-  const score = Math.max(0, Math.min(100, Number(p.score ?? 50)));
+  const rawScore = Number(p.score ?? 50);
+  const score = Number.isFinite(rawScore)
+    ? Math.round(Math.max(0, Math.min(100, rawScore)))
+    : 50;
   return {
-    score: Number.isFinite(score) ? Math.round(score) : 50,
+    score,
     verdict: typeof p.verdict === "string" ? p.verdict : FALLBACK.verdict,
     red_flags: Array.isArray(p.red_flags)
       ? p.red_flags.map(String).slice(0, 10)
@@ -96,18 +105,14 @@ function coerce(parsed: unknown): LlmResult {
   };
 }
 
-export async function analyzeWithLlm(input: {
-  url: string;
-  title: string;
-  text: string;
-}): Promise<LlmResult> {
+export async function analyzeWithLlm(input: LlmInput): Promise<LlmResult> {
   const userPrompt = buildUserPrompt(input);
-
   const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 60_000);
+  const timer = setTimeout(() => ctrl.abort(), LLM_TIMEOUT_MS);
+  const base = config.ollamaUrl.replace(/\/+$/, "");
 
   try {
-    const res = await fetch(`${config.ollamaUrl}/api/chat`, {
+    const res = await fetch(`${base}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       signal: ctrl.signal,
@@ -119,16 +124,17 @@ export async function analyzeWithLlm(input: {
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
-        options: { temperature: 0.2 },
+        options: { temperature: 0.2, num_predict: 400, num_ctx: 2048 },
       }),
     });
     if (!res.ok) throw new Error(`ollama ${res.status}`);
+
     const body = (await res.json()) as { message?: { content?: string } };
     const content = body.message?.content ?? "";
     return coerce(extractJson(content));
   } catch (err) {
     return { ...FALLBACK, summary: `LLM error: ${(err as Error).message}` };
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timer);
   }
 }
