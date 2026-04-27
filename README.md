@@ -1,18 +1,29 @@
 # FakeScope
 
-Chrome MV3 extension that scores news article credibility using a local LLM (Ollama),
-Wayback Machine history, domain reputation, and community votes.
+## Czym jest FakeScope?
 
-See [CLAUDE.md](./CLAUDE.md) for run instructions, API contract, and team ownership map.
+Wtyczka do Chromium która sprawdza wiarygodność artykułów na podstawie lokalnie postawionego LLM'a, ale też opinii użytkowników. Istnieje także funkcja cache'owania pobranych już wyników aby przyspieszyć działanie wtyczki.
 
-# Running /analyze
+## Tech Stack
 
-e.g
+**Frontend**: React.js + Vite (TypeScript), Tailwind CSS
 
-curl -s -X POST http://localhost:3000/analyze \
--H "Content-Type: application/json" \
--d '{
-"url": "https://www.rp.pl/publicystyka/art44239831-latwogang-dla-pokolenia-z-jest-fajniejszy-niz-panstwo",
-"title": "Łatwogang dla pokolenia Z jest fajniejszy niż państwo ",
-"text": ""
-}' | jq .
+**Backend**: Node.js + Fastify (TypeScript), Handmade Redis Mockup (caching), SupaBase (SQL)
+
+**LLM**: Ollama na serwerze domowym Pawełka<3, model3.2
+
+**Zewnętrzne API**: URLhaus (keyless) do walidacji wiarygodności URLi
+
+## API Contract
+
+TODO
+
+## Team
+
+**@mxkolvj (Full Stack)**: setup repo, iterowanie promptu do LLM'a, końcowe integracje, README
+
+**@oskarkrzysztofek (Frontend)**: cały katalog /extension, vite config, extension UI
+
+**@Igorzysko1 (Backend)**: endpoint /analyze i /votes, poprawne liczenie final score
+
+**@niejajestem (Backend)**: setup LLM'a, debugowanie backendu razem z Igorem
