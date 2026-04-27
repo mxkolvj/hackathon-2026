@@ -152,8 +152,8 @@ export function Popup() {
               <button
                 onClick={toggleDark}
                 className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                aria-label={dark ? "Włącz tryb jasny" : "Włącz tryb ciemny"}
-                title={dark ? "Włącz tryb jasny" : "Włącz tryb ciemny"}
+                aria-label={dark ? "Enable light mode" : "Enable dark mode"}
+                title={dark ? "Enable light mode" : "Enable dark mode"}
               >
                 {dark ? <Sun size={15} /> : <Moon size={15} />}
               </button>
@@ -186,9 +186,8 @@ export function Popup() {
             <div className="p-5 text-xs text-gray-500 dark:text-gray-400 flex gap-2 items-start animate-[fadeSlideIn_0.3s_ease_forwards]">
               <AlertCircle size={16} className="shrink-0" />
               <div className="flex flex-col gap-1">
-                <span className="font-semibold">Brak artykułu na stronie</span>
-                Przejdź na stronę jakiegoś artykułu i naciśnij na FakeScope
-                ponownie.
+                <span className="font-semibold">No article on this site</span>
+                Go to a page with an article and click on FakeScope again.
               </div>
             </div>
           )}
@@ -197,7 +196,7 @@ export function Popup() {
             <div className="m-5 p-4 rounded-2xl bg-red-700 dark:bg-red-900 text-xs text-red-300 animate-[fadeSlideIn_0.3s_ease_forwards]">
               <div className="font-semibold mb-1 text-base text-white flex gap-1.5 items-center">
                 <AlertTriangle size={20} strokeWidth={2.5} />
-                Wystąpił błąd
+                An error occured
               </div>
               <div>{error}</div>
             </div>
@@ -212,7 +211,7 @@ export function Popup() {
 
               <div>
                 <h2 className="font-semibold text-xs uppercase text-gray-500 dark:text-gray-400 mb-1">
-                  Podsumowanie
+                  Summary
                 </h2>
                 <p className="text-sm">{result.llm.summary}</p>
               </div>
@@ -222,7 +221,7 @@ export function Popup() {
                 {result.llm.red_flags.length === 0 &&
                   result.llm.positive_signals.length === 0 && (
                     <div className="text-gray-500 dark:text-gray-400">
-                      Brak wyróżnionych sygnałów.
+                      No key indicators detected.
                     </div>
                   )}
 
@@ -230,7 +229,7 @@ export function Popup() {
                   <div>
                     <div className="font-semibold mb-1 text-xs text-red-600 dark:text-red-400 flex gap-1.5 items-center uppercase">
                       <AlertCircle size={16} strokeWidth={2.5} />
-                      Sygnały ostrzegawcze
+                      Red flags
                     </div>
                     <ul className="list-disc pl-5 text-sm">
                       {result.llm.red_flags.map((f, i) => (
@@ -250,7 +249,7 @@ export function Popup() {
                   <div>
                     <div className="font-semibold mb-1 text-xs text-green-600 dark:text-green-400 flex gap-1.5 items-center uppercase">
                       <CircleCheckBig size={16} strokeWidth={2.5} />
-                      Pozytywne sygnały
+                      Green flags
                     </div>
                     <ul className="list-disc pl-5 text-sm">
                       {result.llm.positive_signals.map((f, i) => (
@@ -273,7 +272,7 @@ export function Popup() {
                   {result.community != null && (
                     <>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Głosuj:
+                        Vote:
                       </span>
 
                       <div className="relative">
@@ -295,7 +294,7 @@ export function Popup() {
                         </button>
                         {tooltip === "up" && (
                           <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
-                            Dziękujemy!
+                            Thank you!
                           </div>
                         )}
                       </div>
@@ -320,7 +319,7 @@ export function Popup() {
                         </button>
                         {tooltip === "down" && (
                           <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
-                            Dziękujemy!
+                            Thank you!
                           </div>
                         )}
                       </div>
@@ -334,12 +333,12 @@ export function Popup() {
                   className="mt-5 flex items-center gap-1 text-xs text-white transition disabled:opacity-50 px-3 py-1.5 bg-[#0E7C86aa] hover:bg-[#0E7C86] rounded-xl"
                 >
                   <RotateCcw size={13} />
-                  Analizuj ponownie
+                  Analyze again
                 </button>
 
                 {result.cached && (
                   <span className="text-xs text-gray-400 dark:text-gray-500">
-                    Wczytano z pamięci podręcznej
+                    Showing cached result
                   </span>
                 )}
               </div>
