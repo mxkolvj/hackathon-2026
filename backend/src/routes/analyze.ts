@@ -5,12 +5,10 @@ import { analyzeWithLlm } from "../services/llm.js";
 import { checkWayback } from "../services/wayback.js";
 import { checkDomain } from "../services/domain.js";
 import { aggregate, communityScore } from "../services/score.js";
+import { fetchPageContent } from "../services/scraper.js"; // [NEW]
 
 const CACHE_TTL_SECONDS = 60 * 60;
 
-// Fastify+AJV validates and fills defaults before the handler runs.
-// Only url is required; title/text default to '' so the handler always
-// receives strings.
 const bodySchema = {
   type: "object",
   required: ["url"],
@@ -52,7 +50,7 @@ export default async function analyzeRoute(app: FastifyInstance) {
     "/analyze",
     { schema: { body: bodySchema }, config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
     async (req) => {
-      const { url, title = "", text = "" } = req.body;
+      let { url, title = "", text = "" } = req.body; // Changed to 'let'
 
       const key = cacheKey(url);
       try {
@@ -62,6 +60,12 @@ export default async function analyzeRoute(app: FastifyInstance) {
         }
       } catch (err) {
         app.log.warn({ err }, "redis read failed");
+      }
+
+      // [NEW] If text is missing, the backend fetches it since the AI can't
+      if (!text || text.length < 200) {
+        app.log.info({ url }, "Fetching website content for LLM...");
+        text = await fetchPageContent(url);
       }
 
       const [llm, wayback, domain, community] = await Promise.all([
