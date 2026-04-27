@@ -10,7 +10,6 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
-import { MOCK_RESULT } from "../lib/mock-chrome";
 
 export function Popup() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -21,15 +20,7 @@ export function Popup() {
   const [tooltip, setTooltip] = useState<"up" | "down" | null>(null);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // TODO: TYMCZASOWY useEffect del
   useEffect(() => {
-    if (import.meta.env.DEV) {
-      setTimeout(() => {
-        setResult(MOCK_RESULT);
-        setLoading(false);
-      }, 1500);
-      return;
-    }
     analyzeCurrentTab()
       .then(setResult)
       .catch((e) => {
@@ -133,7 +124,7 @@ export function Popup() {
 
         {result && (
           <div
-            className="flex flex-col gap-4 p-5 pt-4 overflow-y-auto mr-1 my-1 mb-3
+            className="flex flex-col gap-4 p-5 pt-4 overflow-y-auto overflow-x-hidden mr-1 my-1 mb-3
                           animate-[fadeSlideIn_0.35s_ease_forwards]"
           >
             <ScoreCard
@@ -150,6 +141,13 @@ export function Popup() {
             <hr />
 
             <div className="py-2 flex flex-col gap-4">
+              {result.llm.red_flags.length == 0 &&
+                result.llm.positive_signals.length == 0 && (
+                  <div className="text-gray-500">
+                    Brak wyróżnionych sygnałów.
+                  </div>
+                )}
+
               {result.llm.red_flags.length > 0 && (
                 <div>
                   <div className="font-semibold mb-1 text-xs text-red-600 flex gap-1.5 items-center uppercase">

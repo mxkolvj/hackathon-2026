@@ -43,22 +43,24 @@ export function ScoreCard({ score, verdict }: Props) {
     const countEl = countRef.current;
     if (!circle || !countEl) return;
 
-    // Start od pełnego offset (puste kółko)
+    // Reset bez transition
+    circle.style.transition = "none";
     circle.style.strokeDashoffset = String(circumference);
 
-    // Animacja kółka
+    // Dwie ramki — pierwsza zapisuje reset, druga odpala animację
     requestAnimationFrame(() => {
-      circle.style.transition =
-        "stroke-dashoffset 1s cubic-bezier(0.16, 1, 0.3, 1)";
-      circle.style.strokeDashoffset = String(offset);
+      requestAnimationFrame(() => {
+        circle.style.transition =
+          "stroke-dashoffset 1s cubic-bezier(0.16, 1, 0.3, 1)";
+        circle.style.strokeDashoffset = String(offset);
+      });
     });
 
-    // Animacja licznika 0 → score
+    // Licznik 0 → score
     const duration = 900;
     const start = performance.now();
     const tick = (now: number) => {
       const t = Math.min((now - start) / duration, 1);
-      // ease out cubic
       const eased = 1 - Math.pow(1 - t, 3);
       countEl.textContent = String(Math.round(eased * score));
       if (t < 1) requestAnimationFrame(tick);
