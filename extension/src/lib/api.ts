@@ -17,18 +17,17 @@ class BackendError extends Error {
 
 function friendlyError(e: unknown): string {
   if (e instanceof DOMException && e.name === "AbortError")
-    return "Serwer nie odpowiada — spróbuj ponownie.";
+    return "Server is not responding — please try again.";
   if (e instanceof TypeError && e.message.includes("fetch"))
-    return "Brak połączenia z serwerem analizy. Spróbuj ponownie później.";
+    return "Cannot connect to the analysis server. Please try again later.";
   if (e instanceof BackendError) {
-    if (e.status >= 500) return "Serwer analizy chwilowo niedostępny.";
-    if (e.status === 429) return "Zbyt wiele zapytań — poczekaj chwilę.";
-    if (e.status === 422) return "Nie udało się przetworzyć treści strony.";
-    return `Błąd serwera (${e.status}).`;
+    if (e.status >= 500) return "Analysis server is temporarily unavailable.";
+    if (e.status === 429) return "Too many requests — please wait a moment.";
+    if (e.status === 422) return "Failed to process the page content.";
+    return `Server error (${e.status}).`;
   }
-  return "Nieznany błąd — spróbuj ponownie.";
+  return "Unknown error — please try again.";
 }
-
 export async function analyzeCurrentTab(
   force = false,
 ): Promise<AnalyzeResponse> {
