@@ -50,7 +50,7 @@ async function getCommunity(app: FastifyInstance, url: string) {
 export default async function analyzeRoute(app: FastifyInstance) {
   app.post<{ Body: Body }>(
     "/analyze",
-    { schema: { body: bodySchema } },
+    { schema: { body: bodySchema }, config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
     async (req) => {
       const { url, title = "", text = "" } = req.body;
 

@@ -1,28 +1,62 @@
 import fp from "fastify-plugin";
-import Redis from "ioredis";
-import { config } from "../config.js";
+
+// Prosta klasa emulująca zachowanie Redisa w pamięci RAM
+class InMemoryRedisMock {
+  private cache = new Map<string, string>();
+
+  async get(key: string): Promise<string | null> {
+    return this.cache.get(key) || null;
+  }
+
+  // Obsługuje klasyczne app.redis.set("klucz", "wartosc", "EX", 3600)
+  async set(
+    key: string,
+    value: string,
+    mode?: string,
+    duration?: number,
+  ): Promise<string> {
+    this.cache.set(key, value);
+    if (mode === "EX" && duration) {
+      setTimeout(() => {
+        this.cache.delete(key);
+      }, duration * 1000);
+    }
+    return "OK";
+  }
+
+  async del(key: string): Promise<number> {
+    const existed = this.cache.has(key);
+    this.cache.delete(key);
+    return existed ? 1 : 0;
+  }
+
+  on(_event: string, _handler: unknown): void {
+    /* noop — eventy nie są używane przez mock */
+  }
+  async connect() {
+    return Promise.resolve();
+  }
+  async quit() {
+    this.cache.clear();
+    return Promise.resolve();
+  }
+}
 
 declare module "fastify" {
   interface FastifyInstance {
-    redis: Redis;
+    redis: InMemoryRedisMock;
   }
 }
 
 export default fp(async (app) => {
-  const redis = new Redis(config.redisUrl, {
-    lazyConnect: true,
-    maxRetriesPerRequest: 2,
-    retryStrategy: () => null, // don't spam reconnects if Redis is down
-    enableOfflineQueue: false,
-  });
-  redis.on("error", (err) => app.log.warn({ err }, "redis error"));
-  try {
-    await redis.connect();
-  } catch (err) {
-    app.log.warn({ err }, "redis connect failed — continuing without cache");
-  }
-  app.decorate("redis", redis);
+  const mockRedis = new InMemoryRedisMock();
+
+  app.log.info("Uruchomiono In-Memory Mock Redis (Hackathon Mode) 🚀");
+
+  // Rejestrujemy naszego mocka pod tym samym kluczem co wcześniej
+  app.decorate("redis", mockRedis);
+
   app.addHook("onClose", async () => {
-    await redis.quit().catch(() => {});
+    await mockRedis.quit();
   });
 });
