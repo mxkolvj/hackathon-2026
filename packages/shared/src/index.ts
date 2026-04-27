@@ -27,7 +27,7 @@ export interface DomainResult {
 export interface CommunityResult {
   up: number;
   down: number;
-  community_score: number; // 0-100
+  community_score: number | null; // 0-100
 }
 
 export interface AnalyzeResponse {
@@ -36,7 +36,7 @@ export interface AnalyzeResponse {
   llm: LlmResult;
   wayback: WaybackResult | null;
   domain: DomainResult;
-  community: CommunityResult;
+  community: CommunityResult | null;
   cached: boolean;
   generated_at: string; // ISO timestamp
 }
@@ -56,4 +56,10 @@ export const SCORE_WEIGHTS = {
   domain: 0.25,
   wayback: 0.15,
   community: 0.1,
+} as const;
+
+export const SCORE_WEIGHTS_NO_COMMUNITY = {
+  llm: 0.6,
+  domain: 0.25,
+  wayback: 0.15,
 } as const;
