@@ -1,1 +1,1 @@
-{"root":["./src/background/service-worker.ts","./src/content/index.ts","./src/lib/api.ts","./src/lib/mock-chrome.ts","./src/popup/popup.tsx","./src/popup/scorecard.tsx","./src/popup/main.tsx","../packages/shared/src/index.ts"],"version":"5.9.3"}
+{"root":["./src/background/service-worker.ts","./src/content/index.ts","./src/lib/api.ts","./src/lib/mock-chrome.ts","./src/popup/Popup.tsx","./src/popup/ScoreCard.tsx","./src/popup/main.tsx","../packages/shared/src/index.ts"],"version":"5.9.3"}
