@@ -12,5 +12,5 @@
     "declaration": false,
     "sourceMap": true
   },
-  "include": ["src/**/*", "../packages/shared/src/**/*"]
+  "include": ["src/**/*"]
 }

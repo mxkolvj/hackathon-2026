@@ -1,16 +1,41 @@
 import { config } from '../config.js';
 import type { LlmResult } from '@fakescope/shared';
 
-const SYSTEM_PROMPT = `You are a fact-checking assistant evaluating news article credibility.
-Respond with ONLY a JSON object matching this exact shape — no prose, no markdown:
+const SYSTEM_PROMPT = `You are a professional fact-checking engine. Your sole job is to evaluate the credibility of a news article and return a structured JSON verdict.
+
+SCORING RUBRIC (0–100):
+- 85–100: Credible. Named sources, verifiable facts, neutral tone, no logical fallacies.
+- 60–84:  Mostly credible but has minor issues (anonymous sources, slight sensationalism).
+- 40–59:  Mixed. Significant unsourced claims, emotional language, or internal inconsistencies.
+- 20–39:  Low credibility. Multiple red flags: unnamed experts, misleading framing, unverifiable claims.
+- 0–19:   Fabricated or extreme propaganda. No sourcing, sensational headlines, conspiracy framing.
+
+RED FLAGS to look for:
+- Vague attribution ("sources say", "experts claim", "people are saying")
+- Emotionally loaded or sensational language designed to provoke outrage or fear
+- Logical fallacies (straw man, false dichotomy, appeal to authority without credentials)
+- Headlines that exaggerate or contradict the article body
+- Absence of dates, author names, or publication information
+- Claims that contradict well-established scientific or historical consensus
+
+POSITIVE SIGNALS to look for:
+- Named, credentialed sources with verifiable affiliations
+- Links or references to primary sources (studies, official statements, court documents)
+- Author byline present and identifiable
+- Neutral, measured tone even on controversial topics
+- Acknowledgement of opposing viewpoints or uncertainty
+- Consistent facts between headline, lead, and body
+
+OUTPUT FORMAT — respond with ONLY this JSON object, no prose, no markdown fences:
 {
-  "score": <integer 0-100, where 100 = highly credible, 0 = clearly fabricated>,
-  "verdict": "<one short sentence>",
-  "red_flags": ["<concise red flag>", ...],
-  "positive_signals": ["<concise positive signal>", ...],
-  "summary": "<2-3 sentence assessment>"
+  "score": <integer 0-100>,
+  "verdict": "<one crisp sentence summarising the credibility judgement>",
+  "red_flags": ["<specific red flag found>", ...],
+  "positive_signals": ["<specific positive signal found>", ...],
+  "summary": "<2-3 sentences: what the article claims, what undermines or supports it, overall judgement>"
 }
-Consider: sourcing, emotional manipulation, factual claims, internal consistency, named experts, plausibility.`;
+
+If the article text is missing or too short to evaluate, base the score on the URL domain and title alone and set score to 50 unless the title itself is clearly sensational.`;
 
 const FALLBACK: LlmResult = {
   score: 50,
@@ -19,6 +44,25 @@ const FALLBACK: LlmResult = {
   positive_signals: [],
   summary: 'LLM analysis unavailable — defaulting to neutral score.',
 };
+
+// Takes beginning + end of long articles to preserve lead and conclusion.
+function smartTruncate(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const half = Math.floor(maxChars / 2);
+  return `${text.slice(0, half)}\n\n[...]\n\n${text.slice(-half)}`;
+}
+
+function buildUserPrompt(input: { url: string; title: string; text: string }): string {
+  const { url, title, text } = input;
+  const trimmed = text.trim();
+
+  if (!trimmed || trimmed.length < 100) {
+    return `URL: ${url}\nTitle: ${title}\n\nNote: No article body was provided. Evaluate based on the URL domain and title only.`;
+  }
+
+  const article = smartTruncate(trimmed, 4000);
+  return `URL: ${url}\nTitle: ${title}\n\nArticle:\n${article}`;
+}
 
 function extractJson(raw: string): unknown {
   const trimmed = raw.trim();
@@ -51,11 +95,10 @@ export async function analyzeWithLlm(input: {
   title: string;
   text: string;
 }): Promise<LlmResult> {
-  const article = input.text.slice(0, 3000);
-  const userPrompt = `URL: ${input.url}\nTitle: ${input.title}\n\nArticle:\n${article}`;
+  const userPrompt = buildUserPrompt(input);
 
   const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 30_000);
+  const timeout = setTimeout(() => ctrl.abort(), 60_000);
 
   try {
     const res = await fetch(`${config.ollamaUrl}/api/chat`, {
