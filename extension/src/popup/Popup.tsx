@@ -133,7 +133,7 @@ export function Popup() {
   return (
     <div className={`tranisiton-all ${dark ? "dark" : ""}`}>
       {transitioning && (
-        <style>{`* { transition: color 350ms ease, background-color 350ms ease, border-color 350ms ease !important; }`}</style>
+        <style>{`* { transition: color 350ms ease, background-color 350ms ease, border-color 350ms ease, opacity 500ms ease !important; }`}</style>
       )}
       <div className="p-1 overflow-hidden relative">
         {/* gradient light */}
@@ -188,7 +188,7 @@ export function Popup() {
             </div>
           </div>
           <hr className="dark:border-gray-700" />
-          {loading && (
+          {loading && !result && (
             <div className="space-y-3 animate-pulse p-5">
               <div className="flex items-center gap-4 p-3 rounded-lg border border-gray-300 dark:border-gray-700">
                 <div className="w-[100px] h-[100px] rounded-full bg-gray-300 dark:bg-gray-700" />
