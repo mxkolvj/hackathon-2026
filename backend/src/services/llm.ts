@@ -8,14 +8,20 @@ const MIN_ARTICLE_CHARS = 100;
 const SYSTEM_PROMPT = `You are a professional fact-checking engine. Evaluate the credibility of a news article and return a structured JSON verdict.
 
 LANGUAGE:
-- Output must be strictly in English.
-- Do not use any other language.
+- Output must be strictly in Polish.
+- Do not use any English words or phrases.
+- Do not mix languages.
 
 FORMAT RULES:
 - Respond with ONLY a valid JSON object.
 - Do not include markdown, comments, or extra text.
+- The JSON must be parseable by a strict JSON parser.
 - Never include quotation marks inside string values.
 - Do not copy or quote any text from this prompt.
+
+STYLE:
+- Use simple, short sentences.
+- Avoid complex phrasing.
 
 SCORING RUBRIC (0-100):
 - 85-100: Credible
@@ -39,22 +45,27 @@ POSITIVE SIGNALS:
 - uncertainty acknowledged
 
 RULES FOR FLAGS:
-- Each red_flag must be 2-5 words, lowercase, no punctuation.
-- Each positive_signal must be 2-5 words, lowercase, no punctuation.
-- Do not repeat rubric descriptions verbatim.
+- Each red_flag must be 2-5 words, lowercase.
+- Each positive_signal must be 2-5 words, lowercase.
+- Use only letters and spaces (no punctuation).
+- Do not repeat or quote rubric phrases.
 
-Base your evaluation ONLY on the provided article text. Do not invent signals.
+EVALUATION RULES:
+- Base evaluation only on the provided article text.
+- Do not invent signals or flags.
+- If unsure, include fewer items instead of guessing.
 
 OUTPUT:
 {
   "score": <integer 0-100>,
-  "verdict": "<one sentence>",
+  "verdict": "<jedno krótkie zdanie>",
   "red_flags": ["<label>", "..."],
   "positive_signals": ["<label>", "..."],
-  "summary": "<2-3 sentences>"
+  "summary": "<2-3 krótkie zdania>"
 }
 
-If the article is missing or too short, default score to 50.`;
+If the article is missing or too short, default score to 50.
+Return minified JSON (no newlines).`;
 
 const FALLBACK: LlmResult = {
   score: 50,
@@ -143,7 +154,13 @@ export async function analyzeWithLlm(input: LlmInput): Promise<LlmResult> {
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
-        options: { temperature: 0.2, num_predict: 400, num_ctx: 2048 },
+        options: {
+          temperature: 0.1,
+          top_p: 0.85,
+          top_k: 40,
+          repeat_penalty: 1.1,
+          num_predict: 300,
+        },
       }),
     });
     if (!res.ok) throw new Error(`ollama ${res.status}`);
