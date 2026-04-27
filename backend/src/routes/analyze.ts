@@ -54,15 +54,15 @@ export default async function analyzeRoute(app: FastifyInstance) {
     async (req) => {
       const { url, title = "", text = "" } = req.body;
 
-      // const key = cacheKey(url);
-      // try {
-      //   const cached = await app.redis.get(key);
-      //   if (cached) {
-      //     return { ...(JSON.parse(cached) as AnalyzeResponse), cached: true };
-      //   }
-      // } catch (err) {
-      //   app.log.warn({ err }, 'redis read failed');
-      // }
+      const key = cacheKey(url);
+      try {
+        const cached = await app.redis.get(key);
+        if (cached) {
+          return { ...(JSON.parse(cached) as AnalyzeResponse), cached: true };
+        }
+      } catch (err) {
+        app.log.warn({ err }, "redis read failed");
+      }
 
       const [llm, wayback, domain, community] = await Promise.all([
         analyzeWithLlm({ url, title, text }),
@@ -73,16 +73,16 @@ export default async function analyzeRoute(app: FastifyInstance) {
 
       const response = aggregate({ url, llm, wayback, domain, community });
 
-      // try {
-      //   await app.redis.set(
-      //     key,
-      //     JSON.stringify(response),
-      //     "EX",
-      //     CACHE_TTL_SECONDS,
-      //   );
-      // } catch (err) {
-      //   app.log.warn({ err }, "redis write failed");
-      // }
+      try {
+        await app.redis.set(
+          key,
+          JSON.stringify(response),
+          "EX",
+          CACHE_TTL_SECONDS,
+        );
+      } catch (err) {
+        app.log.warn({ err }, "redis write failed");
+      }
 
       return response;
     },

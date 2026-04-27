@@ -21,7 +21,7 @@ await app.register(cors, {
   },
 });
 
-// await app.register(redisPlugin);
+await app.register(redisPlugin);
 await app.register(supabasePlugin);
 
 app.get("/health", async () => ({ ok: true }));
