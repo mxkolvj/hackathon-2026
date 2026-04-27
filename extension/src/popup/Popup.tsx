@@ -2,11 +2,18 @@ import { useEffect, useState, useRef } from "react";
 import type { AnalyzeResponse } from "@fakescope/shared";
 import { ScoreCard } from "./ScoreCard";
 import { HistoryDiff } from "./HistoryDiff";
-import { analyzeCurrentTab, NotArticleError, voteOnUrl } from "../lib/api";
+import {
+  analyzeCurrentTab,
+  clearCache,
+  fetchCommunity,
+  NotArticleError,
+  voteOnUrl,
+} from "../lib/api";
 import {
   AlertCircle,
   AlertTriangle,
   CircleCheckBig,
+  RotateCcw,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
@@ -19,10 +26,23 @@ export function Popup() {
   const [voted, setVoted] = useState<1 | -1 | null>(null);
   const [tooltip, setTooltip] = useState<"up" | "down" | null>(null);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   useEffect(() => {
     analyzeCurrentTab()
-      .then(setResult)
+      .then((data) => {
+        setResult(data);
+        // Zawsze odśwież liczniki z bazy po załadowaniu
+        fetchCommunity(data.url)
+          .then((community) =>
+            setResult((prev) =>
+              prev
+                ? { ...prev, community: { ...prev.community, ...community } }
+                : prev,
+            ),
+          )
+          .catch(() => {});
+      })
       .catch((e) => {
         if (e instanceof NotArticleError) setNotArticle(true);
         else setError((e as Error).message);
@@ -30,20 +50,65 @@ export function Popup() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    return () => clearTimeout(tooltipTimer.current);
+  }, []);
+
+  async function handleReanalyze() {
+    if (!result) return;
+    setReanalyzing(true);
+    setResult(null);
+    setLoading(true);
+    await clearCache(result.url);
+    analyzeCurrentTab()
+      .then((data) => {
+        setResult(data);
+        fetchCommunity(data.url)
+          .then((community) =>
+            setResult((prev) =>
+              prev
+                ? { ...prev, community: { ...prev.community, ...community } }
+                : prev,
+            ),
+          )
+          .catch(() => {});
+      })
+      .catch((e) => {
+        if (e instanceof NotArticleError) setNotArticle(true);
+        else setError((e as Error).message);
+      })
+      .finally(() => {
+        setLoading(false);
+        setReanalyzing(false);
+      });
+  }
+
   async function handleVote(vote: 1 | -1) {
     if (!result || voted !== null) return;
 
-    // UI od razu — nie czekamy na backend
     setVoted(vote);
     setTooltip(vote === 1 ? "up" : "down");
     clearTimeout(tooltipTimer.current);
     tooltipTimer.current = setTimeout(() => setTooltip(null), 2000);
 
-    // API w tle — błąd ignorujemy (lub możesz rollback voted)
     try {
       await voteOnUrl(result.url, vote);
+      // Odśwież liczniki z bazy
+      const updated = await fetchCommunity(result.url);
+      setResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              community: {
+                ...prev.community, // zachowaj community_score
+                up: updated.up,
+                down: updated.down,
+              },
+            }
+          : prev,
+      );
     } catch {
-      // opcjonalnie: setVoted(null) żeby dać szansę ponownego głosowania
+      // zostają optymistyczne wartości
     }
   }
 
@@ -141,8 +206,8 @@ export function Popup() {
             <hr />
 
             <div className="py-2 flex flex-col gap-4">
-              {result.llm.red_flags.length == 0 &&
-                result.llm.positive_signals.length == 0 && (
+              {result.llm.red_flags.length === 0 &&
+                result.llm.positive_signals.length === 0 && (
                   <div className="text-gray-500">
                     Brak wyróżnionych sygnałów.
                   </div>
@@ -187,75 +252,80 @@ export function Popup() {
                 </div>
               )}
             </div>
-            <hr />
-            <HistoryDiff wayback={result.wayback} />
+            {/* <HistoryDiff wayback={result.wayback} /> */}
 
             {/* Voting */}
-            <div className="flex items-center gap-2 pt-4 border-t">
-              <span className="text-xs text-gray-500">Głosuj:</span>
-
-              <div className="relative">
-                <button
-                  disabled={voted !== null}
-                  className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
-                    ${
-                      voted === 1
-                        ? "bg-green-500 cursor-default text-white"
-                        : "bg-green-100 hover:bg-green-200 active:scale-95 cursor-pointer"
-                    }`}
-                  onClick={() => handleVote(1)}
-                >
-                  <ThumbsUp
-                    size={16}
-                    className={`${voted !== 1 && "text-green-900"}`}
-                  />
-                  {result.community.up + (voted === 1 ? 1 : 0)}
-                </button>
-                {tooltip === "up" && (
-                  <div
-                    className="absolute -top-8 left-1/2 -translate-x-1/2 z-10
-                                  bg-gray-800 text-white text-xs px-2 py-1 rounded
-                                  whitespace-nowrap pointer-events-none
-                                  animate-[fadeSlideIn_0.2s_ease_forwards]"
+            <div className="flex flex-col items-center gap-2 pt-4 border-t">
+              <div className="flex items-center w-full gap-2 mb-5">
+                <span className="text-xs text-gray-500">Głosuj:</span>
+                <div className="relative">
+                  <button
+                    disabled={voted !== null}
+                    className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
+                      ${
+                        voted === 1
+                          ? "bg-green-500 cursor-default text-white"
+                          : "bg-green-100 hover:bg-green-200 active:scale-95 cursor-pointer"
+                      }`}
+                    onClick={() => handleVote(1)}
                   >
-                    Dziękujemy!
-                  </div>
-                )}
-              </div>
-
-              <div className="relative">
-                <button
-                  disabled={voted !== null}
-                  className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
-                    ${
-                      voted === -1
-                        ? "bg-red-500 cursor-default text-white"
-                        : voted === 1
-                          ? "bg-red-100 cursor-not-allowed"
-                          : "bg-red-100 hover:bg-red-200 active:scale-95 cursor-pointer"
-                    }`}
-                  onClick={() => handleVote(-1)}
-                >
-                  <ThumbsDown
-                    size={16}
-                    className={`${voted !== -1 && "text-red-900"}`}
-                  />
-                  {result.community.down + (voted === -1 ? 1 : 0)}
-                </button>
-                {tooltip === "down" && (
-                  <div
-                    className="absolute -top-8 left-1/2 -translate-x-1/2 z-10
-                                  bg-gray-800 text-white text-xs px-2 py-1 rounded
-                                  whitespace-nowrap pointer-events-none
-                                  animate-[fadeSlideIn_0.2s_ease_forwards]"
+                    <ThumbsUp
+                      size={16}
+                      className={`${voted !== 1 && "text-green-900"}`}
+                    />
+                    {result.community.up + (voted === 1 ? 1 : 0)}
+                  </button>
+                  {tooltip === "up" && (
+                    <div
+                      className="absolute -top-8 left-1/2 -translate-x-1/2 z-10
+                                    bg-gray-800 text-white text-xs px-2 py-1 rounded
+                                    whitespace-nowrap pointer-events-none
+                                    animate-[fadeSlideIn_0.2s_ease_forwards]"
+                    >
+                      Dziękujemy!
+                    </div>
+                  )}
+                </div>
+                <div className="relative">
+                  <button
+                    disabled={voted !== null}
+                    className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
+                      ${
+                        voted === -1
+                          ? "bg-red-500 cursor-default text-white"
+                          : "bg-red-100 hover:bg-red-200 active:scale-95 disabled:cursor-not-allowed disabled:hover:bg-red-100"
+                      }`}
+                    onClick={() => handleVote(-1)}
                   >
-                    Dziękujemy!
-                  </div>
-                )}
+                    <ThumbsDown
+                      size={16}
+                      className={`${voted !== -1 && "text-red-900"}`}
+                    />
+                    {result.community.down + (voted === -1 ? 1 : 0)}
+                  </button>
+                  {tooltip === "down" && (
+                    <div
+                      className="absolute -top-8 left-1/2 -translate-x-1/2 z-10
+                                    bg-gray-800 text-white text-xs px-2 py-1 rounded
+                                    whitespace-nowrap pointer-events-none
+                                    animate-[fadeSlideIn_0.2s_ease_forwards]"
+                    >
+                      Dziękujemy!
+                    </div>
+                  )}
+                </div>
               </div>
-
+              <button
+                onClick={handleReanalyze}
+                disabled={reanalyzing}
+                className="flex text-nowrap gap-1 text-xs text-white transition disabled:opacity-50 p-3 bg-[#0E7C86aa] hover:bg-[#0E7C86] rounded-xl"
+              >
+                <RotateCcw size={14} /> Analizuj ponownie
+              </button>
               {result.cached && (
-                <span className="ml-auto text-xs text-gray-400">cached</span>
+                <span className="text-xs text-gray-400 mt-4">
+                  Wczytano z pamięci podręcznej
+                </span>
               )}
             </div>
           </div>
