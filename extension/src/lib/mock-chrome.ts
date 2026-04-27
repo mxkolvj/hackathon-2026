@@ -1,3 +1,5 @@
+import { AnalyzeResponse } from "@fakescope/shared";
+
 export function setupMockChrome() {
   if (typeof chrome !== "undefined" && chrome.tabs) return;
 
@@ -48,3 +50,36 @@ export function setupMockChrome() {
     },
   };
 }
+
+export const MOCK_RESULT: AnalyzeResponse = {
+  url: "chrome://settings",
+  final_score: 63,
+  cached: false,
+  llm: {
+    verdict: "Partially reliable",
+    summary:
+      "The article presents mostly factual information but contains some sensationalist language and lacks primary sources for key claims.",
+    red_flags: [
+      "No author attribution",
+      "Sensationalist headline",
+      "Missing citations for statistics",
+    ],
+    positive_signals: [
+      "References official statements",
+      "Balanced perspective presented",
+    ],
+  },
+  wayback: {
+    snapshots_count: 14,
+    first_snapshot: "2021-03-15T10:22:00Z",
+    change_percent: 38,
+  },
+  domain: {
+    domain_score: 71,
+    flags: ["known_outlet", "no_https_issues"],
+  },
+  community: {
+    up: 12,
+    down: 3,
+  },
+};
