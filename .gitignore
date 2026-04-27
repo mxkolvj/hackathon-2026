@@ -8,3 +8,4 @@ dist/
 .turbo/
 extension/dist/
 backend/dist/
+extension/tsconfig.tsbuildinfo

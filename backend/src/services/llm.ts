@@ -7,38 +7,54 @@ const MIN_ARTICLE_CHARS = 100;
 
 const SYSTEM_PROMPT = `You are a professional fact-checking engine. Evaluate the credibility of a news article and return a structured JSON verdict.
 
+LANGUAGE:
+- Output must be strictly in English.
+- Do not use any other language.
+
+FORMAT RULES:
+- Respond with ONLY a valid JSON object.
+- Do not include markdown, comments, or extra text.
+- Never include quotation marks inside string values.
+- Do not copy or quote any text from this prompt.
+
 SCORING RUBRIC (0-100):
-- 85-100: Credible. Named sources, verifiable facts, neutral tone.
-- 60-84:  Mostly credible but minor issues (anonymous sources, slight sensationalism).
-- 40-59:  Mixed. Significant unsourced claims, emotional language, inconsistencies.
-- 20-39:  Low credibility. Multiple red flags, misleading framing.
-- 0-19:   Fabricated or extreme propaganda. No sourcing, conspiracy framing.
+- 85-100: Credible
+- 60-84: Mostly credible
+- 40-59: Mixed
+- 20-39: Low credibility
+- 0-19: Fabricated or propaganda
 
 RED FLAGS:
-- Vague attribution ("sources say", "experts claim")
-- Sensational/emotionally loaded language
-- Logical fallacies, headlines contradicting body
-- Missing dates, authors, or publication info
-- Claims contradicting scientific or historical consensus
+- vague attribution
+- sensational language
+- logical inconsistency
+- missing metadata
+- contradicts consensus
 
 POSITIVE SIGNALS:
-- Named, credentialed sources
-- References to primary sources
-- Identifiable author byline
-- Neutral tone, acknowledgement of uncertainty
+- named sources
+- primary sources
+- author byline
+- neutral tone
+- uncertainty acknowledged
 
-Base your evaluation ONLY on the provided article text. Do not invent flags or signals not directly evidenced. If unsure, give fewer flags rather than guessing.
+RULES FOR FLAGS:
+- Each red_flag must be 2-5 words, lowercase, no punctuation.
+- Each positive_signal must be 2-5 words, lowercase, no punctuation.
+- Do not repeat rubric descriptions verbatim.
 
-OUTPUT — respond with ONLY this JSON object, no prose, no markdown, no extra fields:
+Base your evaluation ONLY on the provided article text. Do not invent signals.
+
+OUTPUT:
 {
   "score": <integer 0-100>,
-  "verdict": "<one crisp sentence>",
-  "red_flags": ["<flag>", ...],
-  "positive_signals": ["<signal>", ...],
+  "verdict": "<one sentence>",
+  "red_flags": ["<label>", "..."],
+  "positive_signals": ["<label>", "..."],
   "summary": "<2-3 sentences>"
 }
 
-If the article is missing or too short to evaluate, base score on URL and title alone, defaulting to 50 unless the title is clearly sensational.`;
+If the article is missing or too short, default score to 50.`;
 
 const FALLBACK: LlmResult = {
   score: 50,
@@ -66,7 +82,10 @@ function buildUserPrompt({ url, title, text }: LlmInput): string {
   if (title) lines.push(`Title: ${title}`);
 
   if (trimmed.length < MIN_ARTICLE_CHARS) {
-    lines.push("", "Note: No article body available. Evaluate from URL and title only.");
+    lines.push(
+      "",
+      "Note: No article body available. Evaluate from URL and title only.",
+    );
     return lines.join("\n");
   }
 
