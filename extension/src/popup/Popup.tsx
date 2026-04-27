@@ -148,11 +148,12 @@ export function Popup() {
             >
               <span className="text-[#0E7C86]">Fake</span>Scope
             </h1>
-            <div className="flex flex-col items-center ml-auto gap-1">
+            <div className="flex flex-col items-end ml-auto gap-1">
               <button
                 onClick={toggleDark}
                 className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 aria-label={dark ? "Włącz tryb jasny" : "Włącz tryb ciemny"}
+                title={dark ? "Włącz tryb jasny" : "Włącz tryb ciemny"}
               >
                 {dark ? <Sun size={15} /> : <Moon size={15} />}
               </button>
