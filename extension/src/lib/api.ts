@@ -17,6 +17,15 @@ export async function analyzeCurrentTab(): Promise<AnalyzeResponse> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) throw new Error("No active tab");
 
+  // dodaj to:
+  if (
+    tab.url.startsWith("chrome://") ||
+    tab.url.startsWith("edge://") ||
+    tab.url.startsWith("about:")
+  ) {
+    throw new Error("Open a news article first");
+  }
+
   const cacheKey = `analyze:${tab.url}`;
   const cached = await chrome.storage.session.get([cacheKey]);
   if (cached[cacheKey]) return cached[cacheKey] as AnalyzeResponse;
