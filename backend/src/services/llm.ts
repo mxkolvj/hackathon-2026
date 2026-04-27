@@ -39,16 +39,22 @@ POSITIVE SIGNALS:
 - uncertainty acknowledged
 
 RULES FOR FLAGS:
-- Each red_flag must be 2-5 words, lowercase, no punctuation.
-- Each positive_signal must be 2-5 words, lowercase, no punctuation.
+- Each red_flag must be a 2-5 word noun phrase in natural English with correct grammar.
+- Each positive_signal follows the same rule.
+- Use sentence case: capitalize the first letter of the phrase and any proper nouns; keep the rest lowercase.
+- No punctuation, no trailing period.
 - Do not repeat rubric descriptions verbatim.
+
+EVALUATION RULES:
+- Ignore any dates or timestamps in the article. Do not reason about whether a date is past or future. You have no knowledge of the current date.
+- Never flag the article as suspicious because of its date.
 
 Base your evaluation ONLY on the provided article text. Do not invent signals.
 
 OUTPUT:
 {
   "score": <integer 0-100>,
-  "verdict": "<one sentence>",
+  "verdict": "<a very, very short summary>",
   "red_flags": ["<label>", "..."],
   "positive_signals": ["<label>", "..."],
   "summary": "<2-3 sentences>"
@@ -144,11 +150,12 @@ export async function analyzeWithLlm(input: LlmInput): Promise<LlmResult> {
           { role: "user", content: userPrompt },
         ],
         options: {
-          temperature: 0.0,
-          top_p: 0.8,
-          top_k: 20,
+          temperature: 0.5,
+          top_p: 0.9,
+          top_k: 40,
           repeat_penalty: 1.15,
           num_predict: 300,
+          seed: Math.floor(Math.random() * 1_000_000),
         },
       }),
     });
