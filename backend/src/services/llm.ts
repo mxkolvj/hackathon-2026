@@ -143,7 +143,13 @@ export async function analyzeWithLlm(input: LlmInput): Promise<LlmResult> {
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
-        options: { temperature: 0.2, num_predict: 400, num_ctx: 2048 },
+        options: {
+          temperature: 0.0,
+          top_p: 0.8,
+          top_k: 20,
+          repeat_penalty: 1.15,
+          num_predict: 300,
+        },
       }),
     });
     if (!res.ok) throw new Error(`ollama ${res.status}`);
