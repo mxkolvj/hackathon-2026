@@ -45,13 +45,12 @@ export interface VotesResponse {
 }
 
 export const SCORE_WEIGHTS = {
-  llm: 0.5,
+  llm: 0.6,
   domain: 0.25,
-  community: 0.1,
+  community: 0.15,
 } as const;
 
 export const SCORE_WEIGHTS_NO_COMMUNITY = {
-  llm: 0.6,
-  domain: 0.25,
-  wayback: 0.15,
+  llm: 0.7,
+  domain: 0.3,
 } as const;
