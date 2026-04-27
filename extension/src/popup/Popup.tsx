@@ -45,8 +45,11 @@ export function Popup() {
   const [dark, setDark] = useState(
     () => localStorage.getItem("fs-theme") === "dark",
   );
+  const [transitioning, setTransitioning] = useState(false);
 
   function toggleDark() {
+    setTransitioning(true);
+    setTimeout(() => setTransitioning(false), 400);
     setDark((d) => {
       const next = !d;
       localStorage.setItem("fs-theme", next ? "dark" : "light");
@@ -126,15 +129,32 @@ export function Popup() {
   }
 
   return (
-    <div className={dark ? "dark" : ""}>
-      <div
-        className="p-1.5 overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(326deg, rgba(14, 124, 134, 1) 0%, rgba(164, 218, 222, 1) 100%)",
-        }}
-      >
-        <div className="flex flex-col text-sm text-gray-900 bg-white dark:bg-gray-900 dark:text-gray-100 max-h-[560px]">
+    <div className={`tranisiton-all ${dark ? "dark" : ""}`}>
+      {transitioning && (
+        <style>{`* { transition: color 350ms ease, background-color 350ms ease, border-color 350ms ease !important; }`}</style>
+      )}
+      <div className="p-1 overflow-hidden relative">
+        {/* gradient light */}
+        <div
+          className="absolute inset-0 transition-opacity duration-500"
+          style={{
+            background:
+              "linear-gradient(326deg, rgba(14, 124, 134, 1) 0%, rgba(164, 218, 222, 1) 100%)",
+            opacity: dark ? 0 : 1,
+          }}
+        />
+        {/* gradient dark */}
+        <div
+          className="absolute inset-0 transition-opacity duration-500"
+          style={{
+            background:
+              "linear-gradient(326deg, rgba(14, 124, 134, 1) 0%, rgba(7, 62, 67, 1) 100%)",
+            opacity: dark ? 1 : 0,
+          }}
+        />
+
+        {/* cała reszta contentu w relative żeby była nad gradientami */}
+        <div className="relative flex flex-col text-sm text-gray-900 bg-white dark:bg-gray-900 dark:text-gray-100 max-h-[560px]">
           {/* Header */}
           <div className="flex items-center gap-2 p-5 pb-4 shrink-0 select-none">
             <img
@@ -166,32 +186,29 @@ export function Popup() {
             </div>
           </div>
           <hr className="dark:border-gray-700" />
-
           {loading && (
             <div className="space-y-3 animate-pulse p-5">
-              <div className="flex items-center gap-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="w-[100px] h-[100px] rounded-full bg-gray-200 dark:bg-gray-700" />
+              <div className="flex items-center gap-4 p-3 rounded-lg border border-gray-300 dark:border-gray-700">
+                <div className="w-[100px] h-[100px] rounded-full bg-gray-300 dark:bg-gray-700" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
-                  <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-8 w-16 bg-gray-300 dark:bg-gray-700 rounded" />
+                  <div className="h-3 w-24 bg-gray-300 dark:bg-gray-700 rounded" />
                 </div>
               </div>
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" />
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/5" />
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/5" />
+              <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-full" />
+              <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-4/5" />
+              <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-3/5" />
             </div>
           )}
-
           {notArticle && (
             <div className="p-5 text-xs text-gray-500 dark:text-gray-400 flex gap-2 items-start animate-[fadeSlideIn_0.3s_ease_forwards]">
               <AlertCircle size={16} className="shrink-0" />
               <div className="flex flex-col gap-1">
                 <span className="font-semibold">No article on this site</span>
-                Go to a page with an article and click on FakeScope again.
+                Go to a site with an article and click on FakeScope again.
               </div>
             </div>
           )}
-
           {error && (
             <div className="m-5 p-4 rounded-2xl bg-red-700 dark:bg-red-900 text-xs text-red-300 animate-[fadeSlideIn_0.3s_ease_forwards]">
               <div className="font-semibold mb-1 text-base text-white flex gap-1.5 items-center">
@@ -201,7 +218,6 @@ export function Popup() {
               <div>{error}</div>
             </div>
           )}
-
           {result && (
             <div className="flex flex-col gap-4 p-5 pt-4 overflow-y-auto overflow-x-hidden mr-1 my-1 mb-3 animate-[fadeSlideIn_0.35s_ease_forwards]">
               <ScoreCard
@@ -270,60 +286,62 @@ export function Popup() {
               <div className="flex flex-col items-center justify-center gap-2 pt-4 border-t dark:border-gray-700">
                 <div className="flex items-center w-full gap-2">
                   {result.community != null && (
-                    <>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Vote:
-                      </span>
+                    <div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mr-2">
+                          Vote:
+                        </span>
 
-                      <div className="relative">
-                        <button
-                          disabled={voted !== null}
-                          className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
-                        ${
-                          voted === 1
-                            ? "bg-green-500 cursor-default text-white"
-                            : "bg-green-100 hover:bg-green-200 dark:bg-green-900 dark:hover:bg-green-800 active:scale-95 cursor-pointer"
-                        }`}
-                          onClick={() => handleVote(1)}
-                        >
-                          <ThumbsUp
-                            size={16}
-                            className={`${voted !== 1 && "text-green-900 dark:text-green-100"}`}
-                          />
-                          {(result.community?.up ?? 0) + (voted === 1 ? 1 : 0)}
-                        </button>
-                        {tooltip === "up" && (
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
-                            Thank you!
-                          </div>
-                        )}
+                        <div className="relative">
+                          <button
+                            disabled={voted !== null}
+                            className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
+                          ${
+                            voted === 1
+                              ? "bg-green-500 cursor-default text-white"
+                              : "bg-green-100 hover:bg-green-200 dark:bg-green-900 dark:hover:bg-green-800 active:scale-95 cursor-pointer"
+                          }`}
+                            onClick={() => handleVote(1)}
+                          >
+                            <ThumbsUp
+                              size={16}
+                              className={`${voted !== 1 && "text-green-900 dark:text-green-100"}`}
+                            />
+                            {(result.community?.up ?? 0) +
+                              (voted === 1 ? 1 : 0)}
+                          </button>
+                          {tooltip === "up" && (
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
+                              Thank you!
+                            </div>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <button
+                            disabled={voted !== null}
+                            className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
+                          ${
+                            voted === -1
+                              ? "bg-red-500 cursor-default text-white"
+                              : "bg-red-100 hover:bg-red-200 dark:bg-red-900 dark:hover:bg-red-800 active:scale-95 disabled:cursor-not-allowed disabled:hover:bg-red-100 dark:disabled:hover:bg-red-900"
+                          }`}
+                            onClick={() => handleVote(-1)}
+                          >
+                            <ThumbsDown
+                              size={16}
+                              className={`${voted !== -1 && "text-red-900 dark:text-red-100"}`}
+                            />
+                            {(result.community?.down ?? 0) +
+                              (voted === -1 ? 1 : 0)}
+                          </button>
+                          {tooltip === "down" && (
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
+                              Thank you!
+                            </div>
+                          )}
+                        </div>
                       </div>
-
-                      <div className="relative">
-                        <button
-                          disabled={voted !== null}
-                          className={`px-2 py-1 text-xs rounded flex gap-2 items-center transition-all duration-150
-                        ${
-                          voted === -1
-                            ? "bg-red-500 cursor-default text-white"
-                            : "bg-red-100 hover:bg-red-200 dark:bg-red-900 dark:hover:bg-red-800 active:scale-95 disabled:cursor-not-allowed disabled:hover:bg-red-100 dark:disabled:hover:bg-red-900"
-                        }`}
-                          onClick={() => handleVote(-1)}
-                        >
-                          <ThumbsDown
-                            size={16}
-                            className={`${voted !== -1 && "text-red-900 dark:text-red-100"}`}
-                          />
-                          {(result.community?.down ?? 0) +
-                            (voted === -1 ? 1 : 0)}
-                        </button>
-                        {tooltip === "down" && (
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
-                            Thank you!
-                          </div>
-                        )}
-                      </div>
-                    </>
+                    </div>
                   )}
                 </div>
 
