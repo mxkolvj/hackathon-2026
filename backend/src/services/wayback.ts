@@ -1,62 +1,57 @@
 import type { WaybackResult } from '@fakescope/shared';
 
 const EMPTY: WaybackResult = { change_percent: null, snapshots_count: 0, first_snapshot: null };
-
-interface CdxRow {
-  timestamp: string;
-  original: string;
-  length: string;
-}
-
-async function fetchJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`wayback ${res.status}`);
-  return (await res.json()) as T;
-}
+const CDX_URL = 'https://web.archive.org/cdx/search/cdx';
 
 function parseTimestamp(ts: string): string | null {
-  // CDX timestamp format: YYYYMMDDhhmmss
   if (ts.length < 8) return null;
-  const y = ts.slice(0, 4);
-  const mo = ts.slice(4, 6);
-  const d = ts.slice(6, 8);
-  return `${y}-${mo}-${d}T00:00:00Z`;
+  return `${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}T00:00:00Z`;
+}
+
+function stripScheme(url: string): string {
+  return url.replace(/^https?:\/\//, '');
 }
 
 export async function checkWayback(url: string): Promise<WaybackResult> {
   const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 8_000);
+  const timeout = setTimeout(() => ctrl.abort(), 10_000);
+
   try {
     const cdxUrl =
-      'https://web.archive.org/cdx/search/cdx?' +
+      CDX_URL +
+      '?' +
       new URLSearchParams({
-        url,
+        url: stripScheme(url),
         output: 'json',
-        fl: 'timestamp,original,length',
-        limit: '100',
+        fl: 'timestamp,length',
+        limit: '10',
         filter: 'statuscode:200',
       }).toString();
 
-    const rows = await fetchJson<string[][]>(cdxUrl, ctrl.signal);
+    const res = await fetch(cdxUrl, { signal: ctrl.signal });
+    if (!res.ok) return EMPTY;
+
+    const rows: string[][] = await res.json();
     if (!rows || rows.length <= 1) return EMPTY;
 
-    const data: CdxRow[] = rows.slice(1).map((r) => ({
-      timestamp: r[0],
-      original: r[1],
-      length: r[2],
-    }));
-
+    // rows[0] is the CDX header row; data starts at index 1
+    const data = rows.slice(1);
     const first = data[0];
     const last = data[data.length - 1];
-    const firstLen = Number(first.length) || 0;
-    const lastLen = Number(last.length) || 0;
+
+    const firstLen = Number(first[1]) || 0;
+    const lastLen = Number(last[1]) || 0;
+
+    // change_percent: relative change in archived response size between first and last snapshot
     const changePercent =
-      firstLen > 0 ? Math.round((Math.abs(lastLen - firstLen) / firstLen) * 100) : null;
+      firstLen > 0 && lastLen > 0
+        ? Math.round((Math.abs(lastLen - firstLen) / firstLen) * 100)
+        : null;
 
     return {
       change_percent: changePercent,
       snapshots_count: data.length,
-      first_snapshot: parseTimestamp(first.timestamp),
+      first_snapshot: parseTimestamp(first[0]),
     };
   } catch {
     return EMPTY;
