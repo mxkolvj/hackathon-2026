@@ -1,0 +1,1 @@
+siema tu zepsuty komputer
