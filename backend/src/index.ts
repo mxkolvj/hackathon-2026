@@ -38,13 +38,19 @@ await app.register(rateLimit, {
 await app.register(redisPlugin);
 await app.register(supabasePlugin);
 
-// Non-blocking Ollama check — warns once on startup, never blocks boot.
-fetch(`${config.ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(3000) })
-  .then((r) => {
-    if (r.ok) app.log.info("ollama reachable");
-    else app.log.warn(`ollama responded ${r.status} — LLM will use fallback score`);
-  })
-  .catch(() => app.log.warn("ollama not reachable — LLM will use fallback score"));
+app.addHook("onSend", async (_req, reply, payload) => {
+  if (
+    typeof payload === "string" &&
+    reply.getHeader("content-type")?.toString().includes("application/json")
+  ) {
+    try {
+      return JSON.stringify(JSON.parse(payload), null, 2);
+    } catch {
+      return payload;
+    }
+  }
+  return payload;
+});
 
 app.get("/health", async () => ({ ok: true }));
 

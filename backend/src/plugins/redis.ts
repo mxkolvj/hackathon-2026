@@ -30,8 +30,9 @@ class InMemoryRedisMock {
     return existed ? 1 : 0;
   }
 
-  on(_event: string, _handler: unknown): void {
-    /* noop — eventy nie są używane przez mock */
+  // Zaślepki (stubs) dla metod ioredisa używanych w oryginalnym pliku
+  on(event: string, handler: any) {
+    /* ignorujemy eventy */
   }
   async connect() {
     return Promise.resolve();
@@ -44,7 +45,9 @@ class InMemoryRedisMock {
 
 declare module "fastify" {
   interface FastifyInstance {
-    redis: InMemoryRedisMock;
+    // Dodajemy 'any', aby TypeScript nie krzyczał w innych plikach,
+    // jeśli użyłeś gdzieś w backendzie specyficznej metody z ioredis.
+    redis: InMemoryRedisMock | any;
   }
 }
 
