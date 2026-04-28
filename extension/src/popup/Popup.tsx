@@ -119,12 +119,31 @@ export function Popup() {
     clearTimeout(tooltipTimer.current);
     tooltipTimer.current = setTimeout(() => setTooltip(null), 2000);
 
+    setResult((prev) =>
+      prev
+        ? updateCommunity(
+            prev,
+            (prev.community?.up ?? 0) + (vote === 1 ? 1 : 0),
+            (prev.community?.down ?? 0) + (vote === -1 ? 1 : 0),
+          )
+        : prev,
+    );
+
     try {
       await voteOnUrl(result.url, vote);
       const { up, down } = await fetchCommunity(result.url);
-      setResult((prev) => updateCommunity(prev, up, down));
+      setResult((prev) => (prev ? updateCommunity(prev, up, down) : prev));
     } catch {
-      // zostają optymistyczne wartości
+      setResult((prev) =>
+        prev
+          ? updateCommunity(
+              prev,
+              (prev.community?.up ?? 0) - (vote === 1 ? 1 : 0),
+              (prev.community?.down ?? 0) - (vote === -1 ? 1 : 0),
+            )
+          : prev,
+      );
+      setVoted(null);
     }
   }
 
@@ -309,8 +328,7 @@ export function Popup() {
                               size={16}
                               className={`${voted !== 1 && "text-green-900 dark:text-green-100"}`}
                             />
-                            {(result.community?.up ?? 0) +
-                              (voted === 1 ? 1 : 0)}
+                            {result.community?.up ?? 0}
                           </button>
                           {tooltip === "up" && (
                             <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
@@ -333,8 +351,7 @@ export function Popup() {
                               size={16}
                               className={`${voted !== -1 && "text-red-900 dark:text-red-100"}`}
                             />
-                            {(result.community?.down ?? 0) +
-                              (voted === -1 ? 1 : 0)}
+                            {result.community?.down ?? 0}
                           </button>
                           {tooltip === "down" && (
                             <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none animate-[fadeSlideIn_0.2s_ease_forwards]">
